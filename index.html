@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Influence Radar 2.0 — 권력 자본 추적 시스템</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            color: #ecf0f1;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 5px;
+            background: linear-gradient(90deg, #00d4ff, #0099ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            font-size: 14px;
+            color: #bdc3c7;
+        }
+        
+        .container {
+            display: flex;
+            gap: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .radar-section {
+            flex: 2;
+            background: rgba(20, 20, 40, 0.8);
+            border-radius: 12px;
+            padding: 30px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .info-section {
+            flex: 1;
+            background: rgba(20, 20, 40, 0.8);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            overflow-y: auto;
+            max-height: 600px;
+        }
+        
+        .info-section h3 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .info-item {
+            background: rgba(0, 212, 255, 0.05);
+            padding: 12px;
+            border-left: 3px solid #00d4ff;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .info-item .name {
+            color: #00d4ff;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .info-item .ticker {
+            color: #ffaa00;
+            margin: 3px 0;
+        }
+        
+        .info-item .action {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        
+        .node {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .node circle {
+            fill: #00d4ff;
+            stroke: #0099ff;
+            stroke-width: 2px;
+        }
+        
+        .node:hover circle {
+            fill: #ffaa00;
+            stroke: #ffdd00;
+            filter: drop-shadow(0 0 10px rgba(255, 170, 0, 0.6));
+        }
+        
+        .node text {
+            font-size: 11px;
+            font-weight: bold;
+            text-anchor: middle;
+            pointer-events: none;
+            fill: #ecf0f1;
+        }
+        
+        .guideline {
+            stroke: rgba(0, 212, 255, 0.2);
+            stroke-dasharray: 4, 4;
+            fill: none;
+        }
+        
+        .guideline-label {
+            font-size: 10px;
+            fill: rgba(0, 212, 255, 0.4);
+            pointer-events: none;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.95);
+            color: #00d4ff;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #00d4ff;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 320px;
+            line-height: 1.6;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+        }
+        
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 212, 255, 0.05);
+            border-radius: 6px;
+            font-size: 11px;
+            color: #bdc3c7;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            margin-right: 8px;
+        }
+        
+        .sentiment-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        
+        .sentiment-positive { background: rgba(0, 255, 136, 0.2); color: #00ff88; }
+        .sentiment-negative { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+        .sentiment-neutral { background: rgba(255, 170, 0, 0.2); color: #ffaa00; }
+        
+        .timestamp {
+            color: #888;
+            font-size: 10px;
+            margin-top: 8px;
+        }
+        
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .info-section {
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚡ Influence Radar 2.0</h1>
+        <p>시장 지배자(인물)의 발언과 행보를 추적하여 주가 영향력을 시각화하는 시스템</p>
+    </div>
+    
+    <div class="container">
+        <div class="radar-section">
+            <svg id="radar" width="600" height="600"></svg>
+            <div class="legend">
+                <div style="margin-bottom: 12px; font-weight: bold;">📍 영향력 위치</div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #00d4ff;"></div>
+                    <span>중심(Core) - 영향력 극대</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(0, 212, 255, 0.5);"></div>
+                    <span>내측(Inner) - 중 영향력</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(0, 212, 255, 0.2);"></div>
+                    <span>외측(Outer) - 저 영향력</span>
+                </div>
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0,212,255,0.2); font-weight: bold;">📊 신호</div>
+                <div class="legend-item">
+                    <div style="width: 8px; height: 8px; background: #00ff88; margin-right: 8px;"></div>
+                    <span>Positive (매수 신호)</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 8px; height: 8px; background: #ffaa00; margin-right: 8px;"></div>
+                    <span>Neutral (대기)</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 8px; height: 8px; background: #ff4444; margin-right: 8px;"></div>
+                    <span>Negative (매도 신호)</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h3>📊 인물별 상세 정보</h3>
+            <div id="info-list"></div>
+        </div>
+    </div>
+    
+    <script>
+        const SVG_WIDTH = 600;
+        const SVG_HEIGHT = 600;
+        const CENTER_X = SVG_WIDTH / 2;
+        const CENTER_Y = SVG_HEIGHT / 2;
+        const RADIUS_STEP = 100;
+        const NUM_CIRCLES = 3;
+        
+        const svg = d3.select('#radar');
+        const infoList = d3.select('#info-list');
+        
+        // 배경 원형 그리드 그리기
+        function drawGuidelines() {
+            // 동심원
+            for (let i = 1; i <= NUM_CIRCLES; i++) {
+                const r = RADIUS_STEP * i;
+                
+                svg.append('circle')
+                    .attr('cx', CENTER_X)
+                    .attr('cy', CENTER_Y)
+                    .attr('r', r)
+                    .attr('class', 'guideline');
+                
+                // 라벨
+                const labels = ['Core (영향력 극대)', 'Inner (중간)', 'Outer (저영향)'];
+                svg.append('text')
+                    .attr('x', CENTER_X + r - 20)
+                    .attr('y', CENTER_Y - 8)
+                    .attr('class', 'guideline-label')
+                    .text(labels[i-1]);
+            }
+            
+            // 중심점 표시
+            svg.append('circle')
+                .attr('cx', CENTER_X)
+                .attr('cy', CENTER_Y)
+                .attr('r', 4)
+                .attr('fill', '#00d4ff')
+                .attr('opacity', 0.7);
+            
+            // 십자 가이드라인
+            svg.append('line')
+                .attr('x1', CENTER_X)
+                .attr('y1', CENTER_Y - RADIUS_STEP * 3)
+                .attr('x2', CENTER_X)
+                .attr('y2', CENTER_Y + RADIUS_STEP * 3)
+                .attr('class', 'guideline')
+                .attr('opacity', 0.1);
+            
+            svg.append('line')
+                .attr('x1', CENTER_X - RADIUS_STEP * 3)
+                .attr('y1', CENTER_Y)
+                .attr('x2', CENTER_X + RADIUS_STEP * 3)
+                .attr('y2', CENTER_Y)
+                .attr('class', 'guideline')
+                .attr('opacity', 0.1);
+        }
+        
+        // 데이터 로드 및 렌더링
+        async function loadAndRender() {
+            try {
+                const response = await fetch('data.json');
+                const data = await response.json();
+                
+                drawGuidelines();
+                renderNodes(data.influencers);
+                renderInfo(data.influencers);
+                
+                console.log(`✅ Radar loaded. Last updated: ${data.metadata.last_updated}`);
+                console.log(`Total influencers: ${data.influencers.length}`);
+            } catch (error) {
+                console.error('❌ Failed to load data.json:', error);
+                infoList.html(`<div class="info-item" style="border-left-color: #ff4444;">
+                    <strong>⚠️ Error loading data</strong><br/>
+                    <small>data.json을 찾을 수 없습니다. 파일을 확인하세요.</small>
+                </div>`);
+            }
+        }
+        
+        function renderNodes(influencers) {
+            const nodes = svg.selectAll('.node')
+                .data(influencers, d => d.id)
+                .enter()
+                .append('g')
+                .attr('class', 'node')
+                .attr('transform', d => {
+                    const angle = (d.coordinates.angle * Math.PI) / 180;
+                    const x = CENTER_X + d.coordinates.dist * Math.cos(angle);
+                    const y = CENTER_Y + d.coordinates.dist * Math.sin(angle);
+                    return `translate(${x}, ${y})`;
+                });
+            
+            // 노드 색상: 신호 감정에 따라
+            nodes.append('circle')
+                .attr('r', d => 8 + d.influence_score * 5)
+                .attr('fill', d => {
+                    if (d.signal_sentiment === 'positive') return '#00ff88';
+                    if (d.signal_sentiment === 'negative') return '#ff4444';
+                    return '#ffaa00';
+                })
+                .attr('opacity', d => 0.8 + d.influence_score * 0.2);
+            
+            // 노드 라벨
+            nodes.append('text')
+                .attr('dy', '.3em')
+                .text(d => d.name.split(' ')[0])
+                .style('font-size', d => 10 + d.influence_score * 4 + 'px');
+            
+            // 호버 및 클릭 이벤트
+            nodes.on('mouseenter', function(event, d) {
+                showTooltip(event, d);
+                d3.select(this).select('circle')
+                    .attr('r', d => 14 + d.influence_score * 6)
+                    .attr('filter', 'drop-shadow(0 0 12px currentColor)');
+            })
+            .on('mouseleave', function(event, d) {
+                hideTooltip();
+                d3.select(this).select('circle')
+                    .attr('r', d => 8 + d.influence_score * 5)
+                    .attr('filter', 'none');
+            })
+            .on('click', function(event, d) {
+                showDetailModal(d);
+            });
+        }
+        
+        function renderInfo(influencers) {
+            influencers.forEach(person => {
+                const tickers = person.ticker.join(', ');
+                const sentimentClass = `sentiment-${person.signal_sentiment}`;
+                const sentimentText = {
+                    'positive': '🟢 Positive',
+                    'negative': '🔴 Negative',
+                    'neutral': '🟡 Neutral'
+                }[person.signal_sentiment];
+                
+                const html = `
+                    <div class="info-item">
+                        <div class="name">🔹 ${person.name}</div>
+                        <div><strong>${person.role}</strong></div>
+                        <div class="ticker">📈 Tickers: ${tickers}</div>
+                        <div class="timestamp">마지막 신호: ${person.last_signal}</div>
+                        <div class="sentiment-badge ${sentimentClass}">${sentimentText}</div>
+                        <div style="color: #bdc3c7; margin-top: 8px;">
+                            <small>📌 ${person.reason.substring(0, 100)}...</small>
+                        </div>
+                        <div style="color: #ffaa00; margin-top: 5px; font-size: 11px;">
+                            💰 Buy: $${person.action_plan.buy_range[0]}-$${person.action_plan.buy_range[1]}<br/>
+                            🎯 Sell: $${person.action_plan.sell_target}<br/>
+                            🛑 Stop: $${person.action_plan.stop_loss}
+                        </div>
+                    </div>
+                `;
+                infoList.append('div').html(html);
+            });
+        }
+        
+        function showTooltip(event, d) {
+            const tooltip = d3.select('body')
+                .append('div')
+                .attr('class', 'tooltip')
+                .html(`
+                    <strong>${d.name}</strong><br/>
+                    <small><strong>역할:</strong> ${d.role}</small><br/>
+                    <small><strong>영향력:</strong> ${(d.influence_score * 100).toFixed(0)}%</small><br/>
+                    <small><strong>신호:</strong> ${d.signal_sentiment.toUpperCase()}</small><br/>
+                    <small><strong>섹터:</strong> ${d.sector}</small><br/>
+                    <hr style="border: none; border-top: 1px solid rgba(0,212,255,0.3); margin: 8px 0;"/>
+                    <small>${d.reason}</small>
+                `)
+                .style('left', (event.pageX + 15) + 'px')
+                .style('top', (event.pageY - 40) + 'px');
+        }
+        
+        function hideTooltip() {
+            d3.selectAll('.tooltip').remove();
+        }
+        
+        function showDetailModal(d) {
+            const modalHTML = `
+                <h3>${d.name}</h3>
+                <p><strong>역할:</strong> ${d.role}</p>
+                <p><strong>영향력 지수:</strong> ${(d.influence_score * 100).toFixed(1)}%</p>
+                <p><strong>섹터:</strong> ${d.sector}</p>
+                <p><strong>티커:</strong> ${d.ticker.join(', ')}</p>
+                <p><strong>신호:</strong> ${d.signal_sentiment.toUpperCase()}</p>
+                <p><strong>분석 근거:</strong></p>
+                <p>${d.reason}</p>
+                <hr/>
+                <p><strong>매매 액션플랜:</strong></p>
+                <ul>
+                    <li>매수 범위: $${d.action_plan.buy_range[0]} - $${d.action_plan.buy_range[1]}</li>
+                    <li>목표가: $${d.action_plan.sell_target}</li>
+                    <li>손절가: $${d.action_plan.stop_loss}</li>
+                </ul>
+            `;
+            alert(modalHTML.replace(/<[^>]*>/g, '\n'));
+        }
+        
+        // 초기 로드
+        loadAndRender();
+        
+        // 자동 갱신 (1시간마다)
+        // setInterval(loadAndRender, 3600000);
+    </script>
+</body>
+</html>
