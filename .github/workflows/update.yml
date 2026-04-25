@@ -28,23 +28,16 @@ jobs:
           pip install scikit-learn numpy pandas
       
       - name: Train ML Model
-        run: |
-          cd scripts
-          python3 train_model.py
+        run: python3 scripts/train_model.py
       
       - name: Run Backtest
-        run: |
-          cd scripts
-          python3 backtest.py
+        run: python3 scripts/backtest.py
       
       - name: Generate Predictions
-        run: |
-          cd scripts
-          python3 predict.py
+        run: python3 scripts/predict.py
       
       - name: Update Dashboard Data
-        run: |
-          echo "Dashboard data updated at $(date)" > data/last_update.txt
+        run: echo "Dashboard data updated at $(date)" > data/last_update.txt
       
       - name: Commit and Push
         run: |
@@ -76,6 +69,5 @@ jobs:
       
       - name: Full Retraining
         run: |
-          cd scripts
-          python3 train_model.py --full-retrain
-          python3 backtest.py --detailed
+          python3 scripts/train_model.py --full-retrain
+          python3 scripts/backtest.py --detailed
